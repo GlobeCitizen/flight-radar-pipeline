@@ -46,3 +46,9 @@ def get_all_flights(api) -> list:
     all_flights = [flight for flights_in_zone in flights.values() for flight in flights_in_zone]
 
     return all_flights
+
+def get_all_airlines(api) -> list:
+    return api.get_airlines()
+
+def get_all_airports(api) -> list:
+    return api.get_airports()
