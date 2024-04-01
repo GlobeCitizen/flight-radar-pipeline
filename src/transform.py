@@ -1,7 +1,7 @@
 from pyspark.sql import DataFrame
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import udf
+from pyspark.sql.functions import udf, from_unixtime
 
 import pycountry_convert as pc
 
@@ -80,7 +80,7 @@ def create_flights_df(flights: list, spark: SparkSession) -> DataFrame:
         StructField("id", StringType(), True),
         StructField("icao_24bit", StringType(), True),
         StructField("aircraft_code", StringType(), True),
-        StructField("time", StringType(), True),
+        StructField("time", DoubleType(), True),
         StructField("latitude", FloatType(), True),
         StructField("longitude", FloatType(), True),
         StructField("origin_airport_iata", StringType(), True),
@@ -97,7 +97,9 @@ def create_flights_df(flights: list, spark: SparkSession) -> DataFrame:
 
     # Remove duplicates
     flights_df = flights_df.dropDuplicates(["id"])
+    
     print(f"{flights_df.count()} flights after removing duplicates")
+    # flights_df = flights_df.withColumn("time", from_unixtime("time", "yyyy-MM-dd HH:mm:ss"))
 
     return flights_df
 
