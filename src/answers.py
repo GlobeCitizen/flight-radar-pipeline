@@ -45,7 +45,8 @@ def get_distance(lat1, lon1, lat2, lon2):
 
 def flights_with_airports(flights_df, airports_df):
     """
-    Join the flights_df and airports_df DataFrames to get the latitude, longitude, and continent of the origin and destination airports.
+    Join the flights_df and airports_df DataFrames to get
+    the latitude, longitude, and continent of the origin and destination airports.
 
     :param flights_df: spark DataFrame
     :param airports_df: spark DataFrame
@@ -83,7 +84,7 @@ def get_airline_with_most_flights(flights_df, airlines_df):
     :return: str
     """
     # Join the flights_df and airlines_df DataFrames
-    joined_df = flights_df.join(airlines_df, flights_df.airline_icao == airlines_df.ICAO, "inner")
+    joined_df = flights_df.join(airlines_df, flights_df.airline_icao == airlines_df.ICAO)
     # Group by the airline name and count the number of flights
     airline_flights = joined_df.groupBy("Name").count()
 
@@ -106,15 +107,22 @@ def most_active_airline_per_continent(flights_df, airlines_df, airports_df):
     flights_df_airport_continent = flights_with_airports(flights_df, airports_df)   
 
     # Join the flights_df and airlines_df DataFrames
-    flights_df_airlines = flights_df_airport_continent.join(airlines_df, flights_df.airline_icao == airlines_df.ICAO, "inner").select(flights_df_airport_continent["*"], airlines_df.Name.alias("airline_name"))
+    flights_df_airlines = flights_df_airport_continent \
+                            .join(airlines_df, flights_df.airline_icao == airlines_df.ICAO) \
+                            .select(flights_df_airport_continent["*"], airlines_df.Name.alias("airline_name"))
 
-    # Group by the airline name and continent and count the number of flights where the origin and destination continents are the same
-    regional_airline_flights = flights_df_airlines.filter(flights_df_airlines.origin_continent == flights_df_airlines.destination_continent).groupBy("airline_name", "origin_continent").count()
+    # Group by the airline name and continent and count the number of flights where the origin and destination continents
+    # are the same
+    regional_airline_flights = flights_df_airlines \
+                                .filter(flights_df_airlines.origin_continent == flights_df_airlines.destination_continent) \
+                                .groupBy("airline_name", "origin_continent").count()
 
     # Get the most active airline per continent
-    most_active_airline_per_continent = regional_airline_flights.orderBy("count", ascending=False).groupBy("origin_continent").agg(
-        first("airline_name").alias("most_active_airline")
-    ).collect()
+    most_active_airline_per_continent = regional_airline_flights \
+                                        .orderBy("count", ascending=False) \
+                                        .groupBy("origin_continent") \
+                                        .agg(first("airline_name").alias("most_active_airline")) \
+                                        .collect()
 
     return {row["origin_continent"]: row["most_active_airline"] for row in most_active_airline_per_continent}
 
@@ -142,6 +150,8 @@ def flight_with_longest_trajectory(flights_df, airports_df):
             col("destination_longitude")
         )
     )
+
+    flights_df_airports.show()
 
     # Get the flight with the longest trajectory
     longest_trajectory_flight = flights_df_airports.orderBy("distance", ascending=False).first()
