@@ -35,15 +35,15 @@ def create_spark_session():
 
 def pipeline_flow():
     spark = create_spark_session()
-    if os.path.exists("../data/Airlines"):
-        airlines_df = spark.read.option("header", "true").csv("../data/Airlines/")
+    if os.path.exists("../data/Airlines.csv"):
+        airlines_df = spark.read.option("header", "true").csv("../data/Airlines.csv")
     else:
         airlines = extract.get_all_airlines(fr_api)
         airlines_df = transform.create_airlines_df(airlines, spark)
         load.save_airlines_to_csv(airlines_df, spark)
     
-    if os.path.exists("../data/Airports"):
-        airports_df = spark.read.option("header", "true").csv("../data/Airports/")
+    if os.path.exists("../data/Airports.csv"):
+        airports_df = spark.read.option("header", "true").csv("../data/Airports.csv")
     else:
         airports = extract.get_all_airports(fr_api)
         airports_df = transform.create_airports_df(airports, spark)
@@ -54,6 +54,4 @@ def pipeline_flow():
     load.save_flights_to_csv(flights_df, spark)
 
 if __name__ == "__main__":
-    spark = create_spark_session()
-    airlines_df = transform.create_airlines_df(extract.get_all_airlines(fr_api), spark)
-    airlines_df.show()
+    pipeline_flow()
