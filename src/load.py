@@ -3,11 +3,11 @@ from pyspark.sql import SparkSession
 from pyspark.sql import DataFrame
 
 def save_airlines_to_csv(airlines_df: DataFrame, spark: SparkSession):
-    airlines_df.write.option("header", "true").csv("../data/Airlines/")
+    airlines_df.write.option("header", "true").csv("../data/Airlines.csv")
     print("Airlines saved to CSV")
 
 def save_airports_to_csv(airports_df: DataFrame, spark: SparkSession):
-    airports_df.write.option("header", "true").csv("../data/Airports/")
+    airports_df.write.option("header", "true").csv("../data/Airports.csv")
     print("Airports saved to CSV")
 
 def save_flights_to_csv(flights_df: DataFrame, spark: SparkSession):
