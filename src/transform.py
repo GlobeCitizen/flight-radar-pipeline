@@ -4,9 +4,32 @@ from pyspark.sql import DataFrame
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
+import requests
 
 import pycountry_convert as pc
 
+# def get_manufacturer(icao24: str) -> str:
+#     """
+#     Get the manufacturer of an aircraft given its icao24 code.
+
+#     :param icao24: str
+#     :return: str
+#     """
+#     url = f"https://aviation-reference-data.p.rapidapi.com/icao24/{icao24}"
+
+#     headers = {
+#         "X-RapidAPI-Key": "795430c3f0mshc5c7b6c25258cdap13cfa0jsn1b11f568db32",
+#         "X-RapidAPI-Host": "aviation-reference-data.p.rapidapi.com"
+#     }
+
+#     response = requests.get(url, headers=headers)
+#     data = response.json()
+
+#     if "manufacturer" in data:
+#         return data["manufacturer"]
+#     else:
+#         return None
+    
 def get_continent(country: str) -> str:
     try:
         # Convert the country name to country code
@@ -154,7 +177,8 @@ def flights_enriched_df(flights_df: DataFrame, airports_df: DataFrame, airlines:
         flights_df["*"],
         F.col("origin_airport.latitude").alias("origin_latitude").cast(FloatType()),
         F.col("origin_airport.longitude").alias("origin_longitude").cast(FloatType()),
-        F.col("origin_airport.continent").alias("origin_continent")
+        F.col("origin_airport.continent").alias("origin_continent"),
+        F.col("origin_airport.country").alias("origin_country")
     )
 
     flight_airport_df = flight_airport_df.join(
@@ -164,7 +188,8 @@ def flights_enriched_df(flights_df: DataFrame, airports_df: DataFrame, airlines:
         flight_airport_df["*"],
         F.col("destination_airport.latitude").alias("destination_latitude").cast(FloatType()),
         F.col("destination_airport.longitude").alias("destination_longitude").cast(FloatType()),
-        F.col("destination_airport.continent").alias("destination_continent")
+        F.col("destination_airport.continent").alias("destination_continent"),
+        F.col("destination_airport.country").alias("destination_country")
     )
 
     # Join the flights_df and airlines_df DataFrames
@@ -174,6 +199,9 @@ def flights_enriched_df(flights_df: DataFrame, airports_df: DataFrame, airlines:
     
     # define a distance udf
     get_distance_udf = F.udf(get_distance, FloatType())
+
+    #define a get_manufacturer udf
+    # get_manufacturer_udf = F.udf(get_manufacturer, StringType())
 
     # Calculate the distance between the origin and destination airports
     flights_df_airports_airlines = flights_df_airports_airlines.withColumn(
@@ -186,6 +214,10 @@ def flights_enriched_df(flights_df: DataFrame, airports_df: DataFrame, airlines:
         )
     )
 
-    return flights_df_airports_airlines
+    # flights_df_airports_airlines = flights_df_airports_airlines.withColumn(
+    #     "manufacturer",
+    #     get_manufacturer_udf(flights_df_airports_airlines.aircraft_code)
+    # )
 
+    return flights_df_airports_airlines
 
