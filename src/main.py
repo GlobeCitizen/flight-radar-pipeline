@@ -60,7 +60,10 @@ def pipeline_flow():
 
     flights = extract.get_all_flights(fr_api)
     flights_df = transform.create_flights_df(flights, spark)
-    load.save_flights_to_csv(flights_df, spark, flights_path)
+    flights_df_enriched = transform.flights_enriched_df(flights_df, airports_df, airlines_df, spark)
+    load.save_flights_to_parquet(flights_df_enriched, spark, flights_path)
+
+    spark.stop()
 
 if __name__ == "__main__":
     pipeline_flow()
