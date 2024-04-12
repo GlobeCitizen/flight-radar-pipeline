@@ -1,4 +1,4 @@
-import os
+import os, json, warnings
 from pyspark.sql import SparkSession
 from FlightRadar24 import FlightRadar24API
 from minio import Minio
@@ -17,6 +17,8 @@ client = Minio(
     secure=False
 )
 
+warnings.filterwarnings("ignore", category=UserWarning)
+
 def create_spark_session():
     spark_master_url = "local[*]"
     spark = SparkSession.builder \
@@ -34,24 +36,31 @@ def create_spark_session():
 
 
 def pipeline_flow():
+    with open(os.path.join(os.pardir, 'config.json'), 'r') as f:
+        config = json.load(f)
+    
+    airlines_path = config['airlines_csv_path']
+    airports_path = config['airports_csv_path']
+    flights_path = config['flights_csv_path']
+
     spark = create_spark_session()
-    if os.path.exists("../data/Airlines.csv"):
-        airlines_df = spark.read.option("header", "true").csv("../data/Airlines.csv")
+    if os.path.exists(airlines_path):
+        airlines_df = spark.read.option("header", "true").csv(airlines_path)
     else:
         airlines = extract.get_all_airlines(fr_api)
         airlines_df = transform.create_airlines_df(airlines, spark)
-        load.save_airlines_to_csv(airlines_df, spark)
+        load.save_df_to_csv(airlines_df, spark, airlines_path)
     
-    if os.path.exists("../data/Airports.csv"):
-        airports_df = spark.read.option("header", "true").csv("../data/Airports.csv")
+    if os.path.exists(airports_path):
+        airports_df = spark.read.option("header", "true").csv(airports_path)
     else:
         airports = extract.get_all_airports(fr_api)
         airports_df = transform.create_airports_df(airports, spark)
-        load.save_airports_to_csv(airports_df, spark)
+        load.save_df_to_csv(airports_df, spark, airports_path)
 
     flights = extract.get_all_flights(fr_api)
     flights_df = transform.create_flights_df(flights, spark)
-    load.save_flights_to_csv(flights_df, spark)
+    load.save_flights_to_csv(flights_df, spark, flights_path)
 
 if __name__ == "__main__":
     pipeline_flow()
