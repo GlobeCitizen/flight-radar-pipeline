@@ -2,15 +2,18 @@ from datetime import datetime
 from pyspark.sql import SparkSession
 from pyspark.sql import DataFrame
 
-def save_airlines_to_csv(airlines_df: DataFrame, spark: SparkSession):
-    airlines_df.write.option("header", "true").csv("../data/Airlines.csv")
+def save_df_to_csv(df: DataFrame, spark: SparkSession, path: str):
+    """
+    Save the dataFrame to a CSV file.
+
+    :param df: spark DataFrame
+    :param spark: SparkSession
+    :param path: csv file path
+    """
+    df.write.option("header", "true").csv(path)
     print("Airlines saved to CSV")
 
-def save_airports_to_csv(airports_df: DataFrame, spark: SparkSession):
-    airports_df.write.option("header", "true").csv("../data/Airports.csv")
-    print("Airports saved to CSV")
-
-def save_flights_to_csv(flights_df: DataFrame, spark: SparkSession):
+def save_flights_to_csv(flights_df: DataFrame, spark: SparkSession, path: str):
     """
     Save the flights_df data to a CSV file.
 
@@ -31,9 +34,8 @@ def save_flights_to_csv(flights_df: DataFrame, spark: SparkSession):
     file_name = f"flights{year+month+day+time}.csv"
 
     # Create the path to the Minio bucket
-    date_path = f"year={year}/month={month}/day={day}/{file_name}"
-    path = f"../data/Flights/rawzone/{date_path}"
-
+    date = f"year={year}/month={month}/day={day}/{file_name}"
+    file_path = path + date
     # path = f"s3a://{MINIO_BUCKET}/Flights/rawzone/{date_path}"
 
     # Make the Minio bucket if it doesn't exist
@@ -42,8 +44,6 @@ def save_flights_to_csv(flights_df: DataFrame, spark: SparkSession):
     #     print("Bucket created")
     
     # Save the DataFrame to a CSV file
-    flights_df.write.option("header", "true").csv(path)
+    flights_df.write.option("header", "true").csv(file_path)
 
-    print(f"Flights saved to {path}")
-    
-    spark.stop()
+    print(f"Flights saved to {file_path}")
