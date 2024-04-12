@@ -1,7 +1,6 @@
-import glob
-import math
+import glob, math, os, json
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, udf, first
+import pyspark.sql.functions as F
 from pyspark.sql.types import FloatType
 
 def create_spark_session():
@@ -24,22 +23,24 @@ def get_distance(lat1, lon1, lat2, lon2):
     :param lon2: float
     :return: float
     """
-    # Check if the values are float
-    if not all(map(lambda x: isinstance(x, float), [lat1, lon1, lat2, lon2])):
-        return None
+
     if lat1 is None or lon1 is None or lat2 is None or lon2 is None:
         return None
+    
+    # cast all values to float if it's possible
+    lat1, lon1, lat2, lon2 = map(float, [lat1, lon1, lat2, lon2])
+
     # Convert latitude and longitude from degrees to radians
     lat1, lon1, lat2, lon2 = map(
-        lambda x: x * (3.14159265359 / 180),
+        lambda x: math.radians(x),
         [lat1, lon1, lat2, lon2]
     )
 
     # Calculate the distance using the haversine formula
     dlat = lat2 - lat1
     dlon = lon2 - lon1
-    a = (pow((pow((pow((pow(math.sin(dlat / 2), 2)), 2) + pow(math.sin(dlon / 2), 2)), 2)), 0.5))
-    c = 2 * math.asin(a)
+    a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2
+    c = 2 * math.asin(math.sqrt(a))
     r = 6371
     return c * r
 
@@ -58,9 +59,9 @@ def flights_with_airports(flights_df, airports_df):
         flights_df.origin_airport_iata == airports_df.iata
     ).select(
         flights_df["*"],
-        col("origin_airport.latitude").alias("origin_latitude"),
-        col("origin_airport.longitude").alias("origin_longitude"),
-        col("origin_airport.continent").alias("origin_continent")
+        F.col("origin_airport.latitude").alias("origin_latitude"),
+        F.col("origin_airport.longitude").alias("origin_longitude"),
+        F.col("origin_airport.continent").alias("origin_continent")
     )
 
     flight_airport_df = flight_airport_df.join(
@@ -68,9 +69,9 @@ def flights_with_airports(flights_df, airports_df):
         flights_df.destination_airport_iata == airports_df.iata
     ).select(
         flight_airport_df["*"],
-        col("destination_airport.latitude").alias("destination_latitude"),
-        col("destination_airport.longitude").alias("destination_longitude"),
-        col("destination_airport.continent").alias("destination_continent")
+        F.col("destination_airport.latitude").alias("destination_latitude"),
+        F.col("destination_airport.longitude").alias("destination_longitude"),
+        F.col("destination_airport.continent").alias("destination_continent")
     )
 
     return flight_airport_df
@@ -121,7 +122,7 @@ def most_active_airline_per_continent(flights_df, airlines_df, airports_df):
     most_active_airline_per_continent = regional_airline_flights \
                                         .orderBy("count", ascending=False) \
                                         .groupBy("origin_continent") \
-                                        .agg(first("airline_name").alias("most_active_airline")) \
+                                        .agg(F.first("airline_name").alias("most_active_airline")) \
                                         .collect()
 
     return {row["origin_continent"]: row["most_active_airline"] for row in most_active_airline_per_continent}
@@ -138,37 +139,44 @@ def flight_with_longest_trajectory(flights_df, airports_df):
     flights_df_airports = flights_with_airports(flights_df, airports_df)
     
     # define a distance udf
-    get_distance_udf = udf(get_distance, FloatType())
+    get_distance_udf = F.udf(get_distance, FloatType())
 
     # Calculate the distance between the origin and destination airports
     flights_df_airports = flights_df_airports.withColumn(
         "distance",
         get_distance_udf(
-            col("origin_latitude"),
-            col("origin_longitude"),
-            col("destination_latitude"),
-            col("destination_longitude")
+            F.col("origin_latitude"),
+            F.col("origin_longitude"),
+            F.col("destination_latitude"),
+            F.col("destination_longitude")
         )
     )
-
-    flights_df_airports.show()
 
     # Get the flight with the longest trajectory
     longest_trajectory_flight = flights_df_airports.orderBy("distance", ascending=False).first()
 
     return longest_trajectory_flight
 
+def average_flight_length_per_continent()
+
 if __name__ == "__main__":
+    with open(os.path.join(os.pardir, 'config.json'), 'r') as f:
+            config = json.load(f)
+
+    airlines_path = config['airlines_csv_path']
+    airports_path = config['airports_csv_path']
+    flights_path = config['flights_csv_path']
+
     spark = create_spark_session()
 
     # Load the Airlines DataFrame
-    airlines_df = spark.read.option("header", "true").csv("../data/Airlines.csv")
+    airlines_df = spark.read.option("header", "true").csv(airlines_path)
 
     #Load the Airports DataFrame
-    airports_df = spark.read.option("header", "true").csv("../data/Airports.csv")
+    airports_df = spark.read.option("header", "true").csv(airports_path)
 
     # Load the most recent Flights DataFrame
-    files = glob.glob("../data/Flights/rawzone/*/*/*/*.csv")
+    files = glob.glob(f"{flights_path}/*/*/*/*.csv")
     files.sort()
     most_recent_file = files[-1]
 
@@ -187,7 +195,6 @@ if __name__ == "__main__":
 
     # Get the flight with the longest trajectory
     longest_trajectory_flight = flight_with_longest_trajectory(flights_df, airports_df)
-    print("The flight with the longest trajectory is:")
-    print(longest_trajectory_flight)
+    print("The flight with the longest trajectory is:", longest_trajectory_flight)
 
     spark.stop()
