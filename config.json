@@ -1,0 +1,5 @@
+{
+    "airlines_csv_path": "../data/airlines.csv",
+    "airports_csv_path": "../data/airports.csv",
+    "flights_csv_path": "../data/Flights/raw/"
+}
