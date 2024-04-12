@@ -1,7 +1,7 @@
 from pyspark.sql import DataFrame
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType
+import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import udf, from_unixtime
 
 import pycountry_convert as pc
 
@@ -48,7 +48,8 @@ def create_airports_df(airports: list, spark: SparkSession) -> DataFrame:
     ])
 
     airports_data = [
-        (airport.iata,
+        (
+        airport.iata,
         float(airport.latitude),
         float(airport.longitude),
         airport.country
@@ -60,9 +61,9 @@ def create_airports_df(airports: list, spark: SparkSession) -> DataFrame:
     print(f"{airports_df.count()} airports found")
 
     # Define a UDF that gets the continent for a given country
-    get_continent_udf = udf(get_continent, StringType())
+    get_continent_udf = F.udf(get_continent, StringType())
 
-    # Add the continent column
+    # Add the continent column 
     airports_df = airports_df.withColumn("continent", get_continent_udf(airports_df["country"]))
 
     return airports_df
@@ -80,7 +81,7 @@ def create_flights_df(flights: list, spark: SparkSession) -> DataFrame:
         StructField("id", StringType(), True),
         StructField("icao_24bit", StringType(), True),
         StructField("aircraft_code", StringType(), True),
-        StructField("time", DoubleType(), True),
+        StructField("time", IntegerType(), True),
         StructField("latitude", FloatType(), True),
         StructField("longitude", FloatType(), True),
         StructField("origin_airport_iata", StringType(), True),
@@ -97,7 +98,7 @@ def create_flights_df(flights: list, spark: SparkSession) -> DataFrame:
 
     # Remove duplicates
     flights_df = flights_df.dropDuplicates(["id"])
-    
+
     print(f"{flights_df.count()} flights after removing duplicates")
     # flights_df = flights_df.withColumn("time", from_unixtime("time", "yyyy-MM-dd HH:mm:ss"))
 
