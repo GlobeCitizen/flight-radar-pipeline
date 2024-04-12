@@ -13,7 +13,7 @@ def save_df_to_csv(df: DataFrame, spark: SparkSession, path: str):
     df.write.option("header", "true").csv(path)
     print("Airlines saved to CSV")
 
-def save_flights_to_csv(flights_df: DataFrame, spark: SparkSession, path: str):
+def save_flights_to_parquet(flights_df: DataFrame, spark: SparkSession, path: str):
     """
     Save the flights_df data to a CSV file.
 
@@ -31,7 +31,7 @@ def save_flights_to_csv(flights_df: DataFrame, spark: SparkSession, path: str):
     time = now.strftime("%H%M%S")
 
     # Create the file name
-    file_name = f"flights{year+month+day+time}.csv"
+    file_name = f"flights{year+month+day+time}.parquet"
 
     # Create the path to the Minio bucket
     date = f"year={year}/month={month}/day={day}/{file_name}"
@@ -44,6 +44,6 @@ def save_flights_to_csv(flights_df: DataFrame, spark: SparkSession, path: str):
     #     print("Bucket created")
     
     # Save the DataFrame to a CSV file
-    flights_df.write.option("header", "true").csv(file_path)
+    flights_df.write.option("header", "true").parquet(file_path)
 
     print(f"Flights saved to {file_path}")
