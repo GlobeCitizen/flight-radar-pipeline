@@ -38,6 +38,7 @@ def get_flights(api, zone_data: dict, zone_name: str='') -> dict:
 
 
 def get_all_flights(api) -> list:
+    print("Getting all flights")
     zones = api.get_zones()
     flights = {}
     for zone_name, zone_data in zones.items():
