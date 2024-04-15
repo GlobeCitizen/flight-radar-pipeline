@@ -4,18 +4,10 @@ import pyspark.sql.functions as F
 from pyspark.sql.window import Window
 import typer
 from util.config_handler import ConfigHandler
+from minio import Minio
+from main import get_spark_session
 
 app = typer.Typer()
-
-def create_spark_session():
-    spark_master_url = "local[*]"
-    spark = SparkSession.builder \
-        .appName("FlightRadarApp") \
-        .master(spark_master_url) \
-        .config("spark.hadoop.fs.s3a.path.style.access", True) \
-        .config("spark.hadoop.fs.s3a.endpoint", "http://localhost:9000") \
-        .getOrCreate()
-    return spark
 
 def get_airline_with_most_flights(flights_df):
     """
@@ -50,6 +42,8 @@ def get_most_active_airline_per_continent(flights_df):
     regional_airline_flights = flights_df \
                                 .filter(flights_df.origin_continent == flights_df.destination_continent) \
                                 .groupBy("airline_name", "origin_continent").count()
+    
+    regional_airline_flights.show()
 
     # Get the most active airline per continent
     most_active_airline_per_continent = regional_airline_flights \
@@ -123,7 +117,7 @@ def get_top_three_aircraft_model_per_country(flights_df) -> dict:
 def airline_with_most_flights():
     airline_with_most_flights = get_airline_with_most_flights(flights_df)
 
-    print(f"The airline with the most flights is: {airline_with_most_flights.airline_name} with {airline_with_most_flights["count"]} flights")
+    print(f"The airline with the most flights is: {airline_with_most_flights.airline_name} with {airline_with_most_flights['count']} flights")
 
 # # Get the most active airline per continent
 @app.command()
@@ -163,13 +157,31 @@ if __name__ == "__main__":
     airports_path = config.get_value("path", "airports_csv_path")
     flights_path = config.get_value("path", "flights_parquet_path")
 
-    spark = create_spark_session()
+    minio_secret_key = config.get_value("MINIO", "MINIO_SECRET")
+    minio_access_key = config.get_value("MINIO", "MINIO_ACCESS")
 
-    # Load the most recent Flights DataFrame
-    files = glob.glob(f"{flights_path}/*/*/*/*.parquet")
-    files.sort()
-    most_recent_file = files[-1]
+    with get_spark_session() as spark:
 
-    flights_df = spark.read.option("header", "true").parquet(most_recent_file)
-    app()
-    spark.stop()
+        # Create a Minio client
+        client = Minio(
+            "minio:9000",
+            access_key=minio_access_key,
+            secret_key=minio_secret_key,
+            secure=False
+        )
+
+        # List all objects in the bucket that start with the prefix
+        objects = client.list_objects('exalt', prefix=flights_path, recursive=True)
+
+        parquet_files = [obj.object_name.rsplit('/', 1)[0] for obj in objects if obj.object_name.endswith('.parquet')]
+
+        for file in parquet_files:
+            print(file)
+
+        # Load the most recent Flights DataFrame
+        parquet_files.sort()
+        most_recent_file = f"s3a://exalt/{parquet_files[-1]}"
+
+        flights_df = spark.read.option("header", "true").parquet(most_recent_file)
+        flights_df.show()
+        app()
