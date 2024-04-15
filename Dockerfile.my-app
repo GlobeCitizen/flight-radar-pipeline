@@ -1,0 +1,49 @@
+# Base image
+FROM python:3.11.9-slim-bullseye as build
+
+RUN apt-get update && apt-get install -y build-essential curl zip
+
+ENV VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
+
+ADD https://astral.sh/uv/install.sh /install.sh
+
+RUN chmod -R 655 /install.sh && /install.sh && rm /install.sh
+
+COPY requirements/base.txt /requirements.txt
+
+RUN /root/.cargo/bin/uv venv /opt/venv && \
+    /root/.cargo/bin/uv pip install --no-cache -r requirements.txt
+
+# Create a .zip file of the pycountry_convert package
+RUN cd /opt/venv/lib/python3.11/site-packages && \
+zip -r pycountry_convert.zip pycountry_convert
+
+FROM python:3.11.9-slim-bullseye
+
+WORKDIR /app
+
+COPY src .
+
+COPY --from=build /opt/venv /opt/venv
+
+# Copy the .zip file to the app directory
+COPY --from=build /opt/venv/lib/python3.11/site-packages/pycountry_convert.zip /app
+
+# Activate the virtualenv in the container
+# See here for more information:
+# https://pythonspeed.com/articles/multi-stage-docker-python/
+
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install OpenJDK-11
+RUN apt-get update && \
+    apt-get install -y openjdk-11-jdk && \
+    apt-get install -y ant && \
+    apt-get clean;
+
+ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
