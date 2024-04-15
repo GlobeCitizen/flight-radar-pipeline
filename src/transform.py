@@ -1,5 +1,6 @@
 import math
 
+from prefect import task
 from pyspark.sql import DataFrame
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType
 import pyspark.sql.functions as F
@@ -29,7 +30,8 @@ import pycountry_convert as pc
 #         return data["manufacturer"]
 #     else:
 #         return None
-    
+
+@F.udf(returnType=StringType())
 def get_continent(country: str) -> str:
     try:
         # Convert the country name to country code
@@ -41,7 +43,9 @@ def get_continent(country: str) -> str:
         return continent_name
     except Exception:
         return None
-    
+
+
+@F.udf(returnType=FloatType())
 def get_distance(lat1, lon1, lat2, lon2):
     """
     Calculate the distance between two points given their latitude and longitude in kilometers.
@@ -73,7 +77,7 @@ def get_distance(lat1, lon1, lat2, lon2):
     r = 6371
     return c * r
     
-
+# @task()
 def create_airlines_df(airlines: list, spark: SparkSession) -> DataFrame:
     """
     Create a DataFrame from the list of airlines.
@@ -95,7 +99,18 @@ def create_airlines_df(airlines: list, spark: SparkSession) -> DataFrame:
 
     return airlines_df
 
+
+# @task()
 def create_airports_df(airports: list, spark: SparkSession) -> DataFrame:
+    """
+    Create a DataFrame from the list of airports.
+    
+    :param airports: list
+    :param spark: SparkSession
+    :return: DataFrame
+    """
+
+    # Define the schema for the airports DataFrame
     airport_schema = StructType([
         StructField("iata", StringType(), True),
         StructField("latitude", FloatType(), True),
@@ -116,14 +131,14 @@ def create_airports_df(airports: list, spark: SparkSession) -> DataFrame:
     airports_df = spark.createDataFrame(airports_data, schema=airport_schema)
     print(f"{airports_df.count()} airports found")
 
-    # Define a UDF that gets the continent for a given country
-    get_continent_udf = F.udf(get_continent, StringType())
 
     # Add the continent column 
-    airports_df = airports_df.withColumn("continent", get_continent_udf(airports_df["country"]))
+    airports_df = airports_df.withColumn("continent", get_continent(airports_df["country"]))
 
     return airports_df
 
+
+# @task()
 def create_flights_df(flights: list, spark: SparkSession) -> DataFrame:
     """
     Create a DataFrame from the list of flights.
@@ -159,7 +174,8 @@ def create_flights_df(flights: list, spark: SparkSession) -> DataFrame:
 
     return flights_df
 
-def flights_enriched_df(flights_df: DataFrame, airports_df: DataFrame, airlines: DataFrame, spark: SparkSession) -> DataFrame:
+# @task()
+def flights_enriched_df(flights_df: DataFrame, airports_df: DataFrame, airlines: DataFrame) -> DataFrame:
     """
     Enrich the flights DataFrame with the flight distance, airport infos and airlines names.
 
@@ -196,9 +212,6 @@ def flights_enriched_df(flights_df: DataFrame, airports_df: DataFrame, airlines:
     flights_df_airports_airlines = flight_airport_df \
         .join(airlines, flight_airport_df.airline_icao == airlines.ICAO) \
         .select(flight_airport_df["*"], airlines.Name.alias("airline_name"))
-    
-    # define a distance udf
-    get_distance_udf = F.udf(get_distance, FloatType())
 
     #define a get_manufacturer udf
     # get_manufacturer_udf = F.udf(get_manufacturer, StringType())
@@ -206,18 +219,13 @@ def flights_enriched_df(flights_df: DataFrame, airports_df: DataFrame, airlines:
     # Calculate the distance between the origin and destination airports
     flights_df_airports_airlines = flights_df_airports_airlines.withColumn(
         "distance",
-        get_distance_udf(
+        get_distance(
             F.col("origin_latitude"),
             F.col("origin_longitude"),
             F.col("destination_latitude"),
             F.col("destination_longitude")
         )
     )
-
-    # flights_df_airports_airlines = flights_df_airports_airlines.withColumn(
-    #     "manufacturer",
-    #     get_manufacturer_udf(flights_df_airports_airlines.aircraft_code)
-    # )
 
     return flights_df_airports_airlines
 
