@@ -1,0 +1,8 @@
+[path]
+airlines_csv_path = 
+airports_csv_path = 
+flights_csv_path = 
+
+[MINIO]
+MINIO_ACCESS = 
+MINIO_SECRET = 
