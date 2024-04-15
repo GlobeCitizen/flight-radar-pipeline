@@ -1,8 +1,9 @@
-import glob, os, json
+import glob
 from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 from pyspark.sql.window import Window
 import typer
+from util.config_handler import ConfigHandler
 
 app = typer.Typer()
 
@@ -156,12 +157,11 @@ def top_three_aircraft_model_per_country():
 
 
 if __name__ == "__main__":
-    with open(os.path.join(os.pardir, 'config.json'), 'r') as f:
-            config = json.load(f)
+    config = ConfigHandler("config/config.ini")
 
-    airlines_path = config['airlines_csv_path']
-    airports_path = config['airports_csv_path']
-    flights_path = config['flights_csv_path']
+    airlines_path = config.get_value("path", "airlines_csv_path")
+    airports_path = config.get_value("path", "airports_csv_path")
+    flights_path = config.get_value("path", "flights_parquet_path")
 
     spark = create_spark_session()
 
