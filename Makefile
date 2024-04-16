@@ -5,7 +5,6 @@ export PYTHONPATH := $(shell pwd)
 ARGS=
 
 help:
-	@echo "make help - display this message"
 	@echo "make install-dev - install development dependencies"
 	@echo "make build - build the Docker Compose services"
 	@echo "make up - start the Docker Compose services"
