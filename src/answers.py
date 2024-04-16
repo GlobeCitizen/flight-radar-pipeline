@@ -100,10 +100,8 @@ def get_top_three_aircraft_model_per_country(flights_df) -> dict:
     aircraft_model_flights = flights_df.groupBy("aircraft_code", "origin_country").count()
 
     # Get the top three aircraft model per country
-    result = flights_df.groupBy('origin_country', 'aircraft_code') \
-                        .count() \
-                        .withColumn('rank', F.row_number().over(Window.partitionBy('origin_country').orderBy(F.desc('count')))) \
-                        .filter(F.col('rank') <= 3)
+    result = aircraft_model_flights.withColumn('rank', F.row_number().over(Window.partitionBy('origin_country').orderBy(F.desc('count')))) \
+                                    .filter(F.col('rank') <= 3)
 
     top_three_aircraft_model_per_country = result.groupBy("origin_country") \
                                             .agg(F.concat_ws(", ", F.collect_list(result.aircraft_code)).alias("top_three_aircraft_model")) \
@@ -175,12 +173,11 @@ if __name__ == "__main__":
 
         parquet_files = [obj.object_name.rsplit('/', 1)[0] for obj in objects if obj.object_name.endswith('.parquet')]
 
-        for file in parquet_files:
-            print(file)
-
         # Load the most recent Flights DataFrame
         parquet_files.sort()
         most_recent_file = f"s3a://exalt/{parquet_files[-1]}"
+
+        print(f"Reading {most_recent_file}")
 
         flights_df = spark.read.option("header", "true").parquet(most_recent_file)
         flights_df.show()
