@@ -1,8 +1,12 @@
 [path]
 airlines_csv_path = 
 airports_csv_path = 
-flights_csv_path = 
+flights_parquet_path = 
 
 [MINIO]
 MINIO_ACCESS = 
 MINIO_SECRET = 
+MINIO_BUCKET =
+
+[SPARK]
+SPARK_MASTER_URL =
