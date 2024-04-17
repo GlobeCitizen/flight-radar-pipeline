@@ -3,4 +3,4 @@ prefect==2.16.8
 pyspark==3.5.1
 minio==7.2.4
 pycountry_convert==0.7.2
-typer
+typer==0.12.3
