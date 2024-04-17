@@ -1,0 +1,7 @@
+FROM docker.io/bitnami/spark:3.5
+
+# Install necessary Python packages and pex
+RUN pip3 install pycountry_convert pex
+
+# Create the PEX environment
+RUN python -m pex pycountry_convert -o pyspark_pex_env.pex

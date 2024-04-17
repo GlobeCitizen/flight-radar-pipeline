@@ -1,4 +1,4 @@
-# Base image
+# Build image
 FROM python:3.11.9-slim-bullseye as build
 
 RUN apt-get update && apt-get install -y build-essential curl zip
@@ -15,10 +15,7 @@ COPY requirements/base.txt /requirements.txt
 RUN /root/.cargo/bin/uv venv /opt/venv && \
     /root/.cargo/bin/uv pip install --no-cache -r requirements.txt
 
-# Create a .zip file of the pycountry_convert package
-RUN cd /opt/venv/lib/python3.11/site-packages && \
-zip -r pycountry_convert.zip pycountry_convert
-
+# Production image
 FROM python:3.11.9-slim-bullseye
 
 WORKDIR /app
@@ -26,9 +23,6 @@ WORKDIR /app
 COPY src .
 
 COPY --from=build /opt/venv /opt/venv
-
-# Copy the .zip file to the app directory
-COPY --from=build /opt/venv/lib/python3.11/site-packages/pycountry_convert.zip /app
 
 # Activate the virtualenv in the container
 # See here for more information:
