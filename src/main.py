@@ -13,9 +13,13 @@ from pyspark.sql import functions as F
 fr_api = FlightRadar24API()
 config = ConfigHandler('config/config.ini')
 
+# Get the Minio configuration
+minio_endpoint = config.get_value('MINIO', 'MINIO_ENDPOINT')
 minio_access_key = config.get_value('MINIO', 'MINIO_ACCESS')
 minio_secret_key = config.get_value('MINIO', 'MINIO_SECRET')
 minio_bucket = config.get_value('MINIO', 'MINIO_BUCKET')
+
+# Get the Spark configuration
 spark_master_url = config.get_value('SPARK', 'SPARK_MASTER_URL')
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -64,12 +68,11 @@ def get_spark_session():
     """
     Create a SparkSession and yield it.
     """
-
     spark = SparkSession.builder \
         .appName("FlightRadarApp") \
         .master(spark_master_url) \
         .config("spark.hadoop.fs.s3a.path.style.access", True) \
-        .config("spark.hadoop.fs.s3a.endpoint", "minio:9000") \
+        .config("spark.hadoop.fs.s3a.endpoint", minio_endpoint) \
         .config("spark.hadoop.fs.s3a.access.key", minio_access_key) \
         .config("spark.hadoop.fs.s3a.secret.key", minio_secret_key) \
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
@@ -101,7 +104,7 @@ def pipeline_flow():
     flights_path = config.get_value('path', 'flights_parquet_path')
 
     client = Minio(
-        "minio:9000",
+        minio_endpoint,
         access_key=minio_access_key,
         secret_key=minio_secret_key,
         secure=False

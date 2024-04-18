@@ -4,6 +4,7 @@ airports_csv_path =
 flights_parquet_path = 
 
 [MINIO]
+MINIO_ENDPOINT = 
 MINIO_ACCESS = 
 MINIO_SECRET = 
 MINIO_BUCKET =

@@ -13,7 +13,7 @@ def get_airline_with_most_flights(flights_df):
 
     :param flights_df: spark DataFrame
     :param airlines_df: spark DataFrame
-    :return: str
+    :return: dataframe
     """
 
     # Group by the airline name and count the number of flights
@@ -149,6 +149,7 @@ if __name__ == "__main__":
 
     flights_path = config.get_value("path", "flights_parquet_path")
 
+    minio_endpoint = config.get_value("MINIO", "MINIO_ENDPOINT")
     minio_secret_key = config.get_value("MINIO", "MINIO_SECRET")
     minio_access_key = config.get_value("MINIO", "MINIO_ACCESS")
 
@@ -156,7 +157,7 @@ if __name__ == "__main__":
 
         # Create a Minio client
         client = Minio(
-            "minio:9000",
+            minio_endpoint,
             access_key=minio_access_key,
             secret_key=minio_secret_key,
             secure=False
