@@ -5,7 +5,7 @@ from pyspark.sql import DataFrame
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, FloatType
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
-import requests
+
 
 import pycountry_convert as pc
 
@@ -40,9 +40,10 @@ def get_continent(country: str) -> str:
         continent_code = pc.country_alpha2_to_continent_code(country_code)
         # Convert the continent code to continent name
         continent_name = pc.convert_continent_code_to_continent_name(continent_code)
-        return continent_name
     except Exception:
-        return None
+        return 'Unknown'
+    return continent_name
+
 
 
 @F.udf(returnType=FloatType())
@@ -77,7 +78,7 @@ def get_distance(lat1, lon1, lat2, lon2):
     r = 6371
     return c * r
     
-# @task()
+@task(name="Creating airlines DataFrame")
 def create_airlines_df(airlines: list, spark: SparkSession) -> DataFrame:
     """
     Create a DataFrame from the list of airlines.
@@ -100,7 +101,7 @@ def create_airlines_df(airlines: list, spark: SparkSession) -> DataFrame:
     return airlines_df
 
 
-# @task()
+@task(name="Creating airports DataFrame")
 def create_airports_df(airports: list, spark: SparkSession) -> DataFrame:
     """
     Create a DataFrame from the list of airports.
@@ -112,6 +113,7 @@ def create_airports_df(airports: list, spark: SparkSession) -> DataFrame:
 
     # Define the schema for the airports DataFrame
     airport_schema = StructType([
+        StructField("name", StringType(), True),
         StructField("iata", StringType(), True),
         StructField("latitude", FloatType(), True),
         StructField("longitude", FloatType(), True),
@@ -120,6 +122,7 @@ def create_airports_df(airports: list, spark: SparkSession) -> DataFrame:
 
     airports_data = [
         (
+        airport.name,
         airport.iata,
         float(airport.latitude),
         float(airport.longitude),
@@ -138,8 +141,8 @@ def create_airports_df(airports: list, spark: SparkSession) -> DataFrame:
     return airports_df
 
 
-# @task()
-def create_flights_df(flights: list, spark: SparkSession) -> DataFrame:
+@task(name="Creating flights silver DataFrame")
+def create_flights_silver_df(flights: list, spark: SparkSession) -> DataFrame:
     """
     Create a DataFrame from the list of flights.
 
@@ -170,11 +173,11 @@ def create_flights_df(flights: list, spark: SparkSession) -> DataFrame:
     flights_df = flights_df.dropDuplicates(["id"])
 
     print(f"{flights_df.count()} flights after removing duplicates")
-    # flights_df = flights_df.withColumn("time", from_unixtime("time", "yyyy-MM-dd HH:mm:ss"))
+    flights_df = flights_df.withColumn("time", F.from_unixtime("time", "yyyy-MM-dd HH:mm:ss"))
 
     return flights_df
 
-# @task()
+@task(name="Creating flights gold DataFrame")
 def flights_enriched_df(flights_df: DataFrame, airports_df: DataFrame, airlines: DataFrame) -> DataFrame:
     """
     Enrich the flights DataFrame with the flight distance, airport infos and airlines names.
@@ -191,6 +194,7 @@ def flights_enriched_df(flights_df: DataFrame, airports_df: DataFrame, airlines:
         flights_df.origin_airport_iata == airports_df.iata
     ).select(
         flights_df["*"],
+        F.col("origin_airport.name").alias("origin_airport_name"),
         F.col("origin_airport.latitude").alias("origin_latitude").cast(FloatType()),
         F.col("origin_airport.longitude").alias("origin_longitude").cast(FloatType()),
         F.col("origin_airport.continent").alias("origin_continent"),
@@ -202,16 +206,21 @@ def flights_enriched_df(flights_df: DataFrame, airports_df: DataFrame, airlines:
         flights_df.destination_airport_iata == airports_df.iata
     ).select(
         flight_airport_df["*"],
+        F.col("destination_airport.name").alias("destination_airport_name"),
         F.col("destination_airport.latitude").alias("destination_latitude").cast(FloatType()),
         F.col("destination_airport.longitude").alias("destination_longitude").cast(FloatType()),
         F.col("destination_airport.continent").alias("destination_continent"),
         F.col("destination_airport.country").alias("destination_country")
     )
 
+    print(f"{flight_airport_df.count()} flights after enriching with airports")
+
     # Join the flights_df and airlines_df DataFrames
     flights_df_airports_airlines = flight_airport_df \
         .join(airlines, flight_airport_df.airline_icao == airlines.ICAO) \
         .select(flight_airport_df["*"], airlines.Name.alias("airline_name"))
+
+    print(f"{flights_df_airports_airlines.count()} flights after enriching with airlines")
 
     #define a get_manufacturer udf
     # get_manufacturer_udf = F.udf(get_manufacturer, StringType())
@@ -226,6 +235,6 @@ def flights_enriched_df(flights_df: DataFrame, airports_df: DataFrame, airlines:
             F.col("destination_longitude")
         )
     )
-
+    
     return flights_df_airports_airlines
 
