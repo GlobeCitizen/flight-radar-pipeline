@@ -7,7 +7,6 @@ services:
       dockerfile: Dockerfile.my-app
     ports:
       - 4040:4040
-      - 4200:4200
     volumes:
       - ./src:/app
     
@@ -23,27 +22,27 @@ services:
       - minio-data:/data
     command: server /data --console-address ":9001"
 
-  spark:
-      build:
+  spark-master:
+    build:
         context: .
         dockerfile: Dockerfile.spark
-      environment:
+    environment:
         - SPARK_MODE=master
         - SPARK_RPC_AUTHENTICATION_ENABLED=no
         - SPARK_RPC_ENCRYPTION_ENABLED=no
         - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
         - SPARK_SSL_ENABLED=no
         - SPARK_USER=spark
-      ports:
-        - '8080:8080'
-        - '7077:7077'
+    ports:
+      - '8080:8080'
+      - '7077:7077'
   spark-worker:
       build:
         context: .
         dockerfile: Dockerfile.spark
       environment:
         - SPARK_MODE=worker
-        - SPARK_MASTER_URL=spark://spark:7077
+        - SPARK_MASTER_URL=spark://spark-master:7077
         - SPARK_WORKER_MEMORY=2G
         - SPARK_WORKER_CORES=2
         - SPARK_RPC_AUTHENTICATION_ENABLED=no
@@ -52,6 +51,40 @@ services:
         - SPARK_SSL_ENABLED=no
         - SPARK_USER=spark
         - PYSPARK_PYTHON=./pyspark_pex_env.pex
+  
+  ### Prefect Database
+  database:
+    image: postgres:15.2-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=prefect
+    expose:
+      - 5432
+    volumes: 
+      - db:/var/lib/postgresql/data
+
+    ### Prefect Server API and UI
+  prefect-server:
+    image: prefecthq/prefect:2-python3.11
+    restart: always
+    volumes:
+      - prefect:/root/.prefect
+    entrypoint: ["/opt/prefect/entrypoint.sh", "prefect", "server", "start"]
+    environment:
+      - PREFECT_UI_URL=http://127.0.0.1:4200/api
+      - PREFECT_API_URL=http://127.0.0.1:4200/api
+      - PREFECT_SERVER_API_HOST=0.0.0.0
+      - PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://postgres:postgres@database:5432/prefect
+      # Uncomment the following line if you want to use the 'S3 Bucket' storage block instead of the older 'S3' storage
+      # - EXTRA_PIP_PACKAGES=prefect-aws
+    ports:
+      - 4200:4200
+    depends_on:
+      - database
 
 volumes:
   minio-data:
+  db:
+  prefect:
