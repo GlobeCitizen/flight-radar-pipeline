@@ -173,6 +173,7 @@ def create_flights_silver_df(flights: list, spark: SparkSession) -> DataFrame:
     flights_df = flights_df.dropDuplicates(["id"])
 
     print(f"{flights_df.count()} flights after removing duplicates")
+    spark.conf.set("spark.sql.session.timeZone", "Europe/Paris")
     flights_df = flights_df.withColumn("time", F.from_unixtime("time", "yyyy-MM-dd HH:mm:ss"))
 
     return flights_df
