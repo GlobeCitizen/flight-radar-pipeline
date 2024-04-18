@@ -2,8 +2,8 @@
 
 export PYTHONPATH := $(shell pwd)
 
-ARGS ?= --help
-SCALE ?= 1
+question ?= --help
+scale ?= 1
 
 help:
 	@echo "make install-dev - install development dependencies"
@@ -20,7 +20,7 @@ build:
 	docker-compose build
 
 up:
-	docker-compose up -d --scale spark-worker=$(SCALE)
+	docker-compose up -d --scale spark-worker=$(scale)
 
 down:
 	docker-compose down
@@ -29,4 +29,4 @@ run-main:
 	docker-compose exec my-app python main.py
 
 run-answers:
-	docker-compose exec my-app python answers.py $(ARGS)
+	docker-compose exec my-app python answers.py $(question)
