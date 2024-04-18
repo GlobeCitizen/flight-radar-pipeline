@@ -1,5 +1,3 @@
-import glob
-from pyspark.sql import SparkSession
 import pyspark.sql.functions as F
 from pyspark.sql.window import Window
 import typer
@@ -43,8 +41,6 @@ def get_most_active_airline_per_continent(flights_df):
                                 .filter(flights_df.origin_continent == flights_df.destination_continent) \
                                 .groupBy("airline_name", "origin_continent").count()
     
-    regional_airline_flights.show()
-
     # Get the most active airline per continent
     most_active_airline_per_continent = regional_airline_flights \
                                         .orderBy("count", ascending=False) \
@@ -151,8 +147,6 @@ def top_three_aircraft_model_per_country():
 if __name__ == "__main__":
     config = ConfigHandler("config/config.ini")
 
-    airlines_path = config.get_value("path", "airlines_csv_path")
-    airports_path = config.get_value("path", "airports_csv_path")
     flights_path = config.get_value("path", "flights_parquet_path")
 
     minio_secret_key = config.get_value("MINIO", "MINIO_SECRET")
@@ -168,8 +162,8 @@ if __name__ == "__main__":
             secure=False
         )
 
-        # List all objects in the bucket that start with the prefix
-        objects = client.list_objects('exalt', prefix=flights_path, recursive=True)
+        # List all objects in the bucket within the gold layer
+        objects = client.list_objects('exalt', prefix=f'{flights_path}/gold', recursive=True)
 
         parquet_files = [obj.object_name.rsplit('/', 1)[0] for obj in objects if obj.object_name.endswith('.parquet')]
 
@@ -180,5 +174,4 @@ if __name__ == "__main__":
         print(f"Reading {most_recent_file}")
 
         flights_df = spark.read.option("header", "true").parquet(most_recent_file)
-        flights_df.show()
         app()
