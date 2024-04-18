@@ -1,76 +1,110 @@
-# FlightRadar24
+# Project Architecture
 
-# Sujet
+This project is designed to be a robust, scalable, and automated ETL pipeline for processing real-time flight data from the Flightradar24 API, respecting the medaillon architecture. The architecture of the application  includes the following components:
+### Data Extraction(Bronze)
 
+The data extraction phase involves pulling data from the Flightradar24 API. This is done using a scheduled job that runs every hour, ensuring that the most recent data is always available for processing. The data is first extracted raw to the bronze bucket as a csv file.
+I encountered a problem using the API as it only gets 1500 for every call. So I used get_zone and get_bonds to get flights for all zones, but still I get limited for some busy zones. The solution implented is dividing each zone recursivly when we reach the 1500 limit.
+That's what divide_zone in extract.py file do.
+The airplanes and airlines are only extracted on the first run of the pipeline and kept for future run as they don't change that frequently. They are saved as csv files on the minio bucket.
 
-Créer un pipeline ETL (Extract, Transform, Load) permettant de traiter les données de l'API [flightradar24](https://www.flightradar24.com/), qui répertorie l'ensemble des vols aériens, aéroports, compagnies aériennes mondiales.
+### Data Cleaning(Silver)
 
-> En python, cette librairie: https://github.com/JeanExtreme002/FlightRadarAPI facilite l'utilisation de l'API.
+The data cleaning phase is an essential part of the pipeline. It involves removing duplicates, handling missing values, and performing type conversions as necessary. This phase ensures that the data is in a suitable format for analysis and reduces the likelihood of errors during the processing phase. The data coming from this phase is saved on the silver bucket as parquet file.
+In our pipeline, here is the cleaning and transformation done:
+    - Flights : Removed duplicates based on "id", change "time" for human readability,
+                cast "longitude" and "latitude" as Floats and keep only the columns that
+                we need
+| id | aircraft_code | time | number | on_ground | airline_icao | origin_airport_name | origin_country | destination_airport_name | destination_country |
+|----|---------------|------|--------|-----------|--------------|---------------------|----------------|--------------------------|-------------------|
+| 34d26b57 | A359 | 2024-04-18 17:17:22 | SQ24 | 0 | SIA | Singapore Changi Airport | Singapore | New York John F. Kennedy International Airport | United States |
 
-## Résultats
+We also have longitude and latitude columns.
+### Data Processing(Gold)
 
-Ce pipeline doit permettre de fournir les indicateurs suivants:
-1. La compagnie avec le + de vols en cours
-2. Pour chaque continent, la compagnie avec le + de vols régionaux actifs (continent d'origine == continent de destination)
-3. Le vol en cours avec le trajet le plus long
-4. Pour chaque continent, la longueur de vol moyenne
-5. L'entreprise constructeur d'avions avec le plus de vols actifs
-6. Pour chaque pays de compagnie aérienne, le top 3 des modèles d'avion en usage
+The data processing phase involves transforming the cleaned data into a format that is suitable for analysis. To get this bussiness ready data, we aggregate flights with airports and airline. Additionnaly we enrich data with additional information like the continent of the airports and the distance between the origin and the destination of the flight. Finally the data is stored in the gold bucket as a parquet file and ready to answer our business questions.
 
-## Industrialisation
+### Data Storage
 
-Ce kata est orienté **industrialisation**. Le pipeline ETL doit être pensé comme un job se faisant éxécuter à échéance régulière (ex: toutes les 2 heures).
+The processed data is stored in a directory with a timestamped naming convention. This allows for easy tracking of data versions and makes it possible to revert to a previous version of the data if necessary.
 
-Le job doit donc être
-* **fault-tolerant**: Un corner-case pas couvert ou une donnée corrompue ne doivent pas causer l'arret du job.
-* **observable**: En loggant les informations pertinantes
-* **systématique**: conserver les données & résultats dans un mécanisme de stockage, en adoptant une nomencalture adaptée permettant aux _data analyst_ en aval de retrouver les valeurs recherchées pour un couple `(Date, Heure)` donné.
+### Orchestration
 
+The entire pipeline is orchestrated Prefect. This allows for the scheduling of the extraction, cleaning, and processing tasks, and ensures that the pipeline runs smoothly without human intervention.
 
-## ⚠️ Candidatures ⚠️
+### Monitoring
 
+Monitoring tools can be used to track the performance of the pipeline and alert the team to any issues that arise. This could involve tracking the time taken for each phase of the pipeline, the amount of data processed, and any errors that occur. All this can be done using Prefect.
 
-> Le kata laisse volontairement beaucoup de liberté. Il y a une grande marge de progression entre un “MVP” et une implémentation “parfaite”. Au candidat de choisir sur quelles exigences mettre le focus dans son rendu.
+### Future Developpement
 
-> Le rendu MVP implémente au moins 4 des questions de l'énoncé, assorti d'un Readme expliquant la démarche choisie
+We can add dremio and nessio to load data from our buckets to a external tables to make it more available.
+We could also implement dbt for data validation but our pipeline will turn into an ELT instead.
 
-> A défaut d'implémenter tout le pipeline, proposez dans le README **un exemple d'architecture idéal de votre application industrialisée**(dans un environnement de PROD) sans avoir besoin de l'implémenter (ex: ordonnancement, monitoring, data modeling, etc.)
+## Getting Started
 
-> Pour faire ce schéma, https://www.diagrams.net/ ou https://excalidraw.com/ sont vos amis :)
+These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
 
-> **Pour le rendu, Poussez sur une nouvelle branche git, ouvrez une merge request vers Main, et notifiez votre interlocuteur par message que le kata est fini.
+### Prerequisites
 
-![flightradarimage](media-assets/flightradar.png)
-
-
-# Contexte & motivation derrière le kata
-
-
-Un data engineer doit être capable de concevoir un pipeline de données pour gérer un flux important et en tirer des informations pertinentes. 
-
- 
-
-En tant que data engineer, il est important de pouvoir **explorer & comprendre le dataset qu’on manipule** pour proposer les Vues adaptées au différents use-cases, et effectuer le data-cleaning nécessaire. 
-
-https://www.flightradar24.com/ est une API fournissant des informations **en temps réel** sur le traffic aérien mondial. De ce fait, les informations qu'elle renvoie changent en parmanence. Pour en tirer des informations utiles, son traitement doit donc **doit être répété régulièrement**. Pour des raisons d'efficacité, on cherche donc à transformer ce pipeline ETL en **un job ne requérant pas d'intervention humaine.**
+- Docker
+- Make
 
 
-# Specification [RFC2119](https://microformats.org/wiki/rfc-2119-fr) du kata
+### Installation
 
+#### Configuration
+The `config.ini.template` file contains the configuration for the application. Before running the services, you will need to fill in the necessary details.
+- The `[path]` section is for specifying the paths to your CSV and Parquet files.
+- The `[MINIO]` section is for MinIO configuration. After starting the services, you will need to retrieve the MinIO secret key and access key from the console and fill them in here. You can change the user and password in the docker compose yaml file. The `MINIO_ENDPOINT` is the URL of your MinIO server, and `MINIO_BUCKET` is the name of your bucket.
+- The `[SPARK]` section is for specifying the URL of your Spark master.
+- The `[API]` section is for setting the limit for your API.
 
-* Un grand pouvoir implique de grandes responsabilités. Vos choix `DOIVENT` être justifiés dans un Readme. 
+Remember to rename the `config.ini.template` file to `config.ini` after filling in the details.
+You can also configure the resource allocated to the spark workers on the docker compose yaml file.
 
-* L'extraction des données `PEUT` être faite dans le format de votre choix. CSV, Parquet, AVRO, ... celui qu'il vous semble le plus adapté
+1. Clone the repository:
+```sh
+git clone
+```
+2. Navigate to the project directory:
+```sh
+cd flight-radar
+```
+3. Build the Docker Compose services:
+```sh
+make build
+```
+4. Start the Docker Compose services:
+```sh
+make up
+```
+Now we have:
+- Minio console [localhost:9001](http://localhost:9001/)
+- Prefect server [localhost:4200](http://localhost:4200/)
+- spark UI [localhost:8080](http://localhost:8080/)
 
-* Votre pipeline `DOIT` inclure une phase de [data cleaning](https://fr.wikipedia.org/wiki/Nettoyage_de_donn%C3%A9es)
+To run the main script, use the following command:
 
-* Le rendu `PEUT` comporter un Jupyter notebook avec les résultats
+```sh
+make run-main scale=<number of workers>
+```
 
-* votre pipeline `DEVRAIT` utiliser Apache Spark et l'API DataFrame
+Navigate to the Prefect console and initiate the first run of the pipeline flow. This step is only necessary if you wish to start the flow immediately. Otherwise, the pipeline will automatically execute within an hour, and continue to run on an hourly schedule thereafter.
 
-* votre pipeline `DEVRAIT` stocker les données dans un dossier avec une nomenclature horodatée. Ex: `Flights/rawzone/tech_year=2023/tech_month=2023-07/tech_day=2023-07-16/flights2023071619203001.csv`
+To run the answers script, use the following command:
+```sh
+make run-answers question=--help
+```
+Then you'll see the list of possible questions.
 
+### Running the tests
+The tests for this project are located in the tests directory. They can be run using Pytest.
 
+### Acknowledgments
 
+- [Spark cluster in Docker](https://github.com/bitnami/containers/tree/main/bitnami/spark)
+- [Why you should use the S3 magic committer to improve performance?](https://spot.io/blog/improve-apache-spark-performance-with-the-s3-magic-committer/)
+- [The prefect Hybrid model](https://medium.com/the-prefect-blog/the-prefect-hybrid-model-1b70c7fd296)
+- [Prefect with its postgres db with Docker Compose](https://github.com/rpeden/prefect-docker-compose)
 
-> Questions Bonus: Quel aéroport a la plus grande différence entre le nombre de vol sortant et le nombre de vols entrants ?
