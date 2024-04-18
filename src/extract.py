@@ -1,4 +1,11 @@
-API_LIMIT = 1500
+from prefect import task
+from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame
+
+from util.config_handler import ConfigHandler
+
+config = ConfigHandler('config/config.ini')
+API_LIMIT = config.get_value('API', 'API_LIMIT')
 
 def divide_zone(zone_data: dict) -> dict:
     """
@@ -36,7 +43,7 @@ def get_flights(api, zone_data: dict, zone_name: str='') -> dict:
 
     return flights
 
-
+@task(name="Extracting flights")
 def get_all_flights(api) -> list:
     print("Getting all flights")
     zones = api.get_zones()
@@ -48,8 +55,28 @@ def get_all_flights(api) -> list:
 
     return all_flights
 
+@task(name="Creating flights raw df")
+def create_flights_raw_df(flights: list, spark: SparkSession) -> DataFrame:
+    """
+    Create a DataFrame from the list of flights.
+
+    Args:
+        flights: list of flights
+        spark: SparkSession
+
+    Returns:
+        A spark DataFrame
+    """
+
+    flights_raw_df = spark.createDataFrame(flights)
+    print(f"{flights_raw_df.count()} flights found")
+    return flights_raw_df
+
+
+@task(name="Extracting airlines")
 def get_all_airlines(api) -> list:
     return api.get_airlines()
 
+@task(name="Extracting airports")
 def get_all_airports(api) -> list:
     return api.get_airports()
