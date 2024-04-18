@@ -1,20 +1,25 @@
 import warnings
+import contextlib
+
 from prefect import flow
-from pyspark import SparkFiles
 from pyspark.sql import SparkSession
 from FlightRadar24 import FlightRadar24API
 from minio import Minio
-from minio.error import S3Error
-import contextlib
-from util.config_handler import ConfigHandler
 
+from util.config_handler import ConfigHandler
 import extract, transform, load
+from pyspark.sql import functions as F
 
 fr_api = FlightRadar24API()
+config = ConfigHandler('config/config.ini')
 
-MINIO_BUCKET = "exalt"
+minio_access_key = config.get_value('MINIO', 'MINIO_ACCESS')
+minio_secret_key = config.get_value('MINIO', 'MINIO_SECRET')
+minio_bucket = config.get_value('MINIO', 'MINIO_BUCKET')
+spark_master_url = config.get_value('SPARK', 'SPARK_MASTER_URL')
 
 warnings.filterwarnings("ignore", category=UserWarning)
+
 
 def get_or_create_df(client: Minio, spark: SparkSession, path: str, extract_func, transform_func):
     """
@@ -28,19 +33,20 @@ def get_or_create_df(client: Minio, spark: SparkSession, path: str, extract_func
     :return: DataFrame
     """
     # List all objects in the bucket
-    objects = client.list_objects(MINIO_BUCKET, prefix=path, recursive=True)
+    objects = client.list_objects(minio_bucket, prefix=path, recursive=True)
 
     # Check if the CSV file exists
     if not any([obj.object_name == f'{path}/_SUCCESS' for obj in objects]):
         data = extract_func(fr_api)
         df = transform_func(data, spark)
-        load.save_df_to_csv(df, f"s3a://{MINIO_BUCKET}/{path}")
+        load.save_df_to_csv(df, f"s3a://{minio_bucket}/{path}")
         print(f"{path} saved to CSV")
     else:
         # Read the CSV file
         print(f"Reading {path}")
-        df = spark.read.option("header", "true").csv(f"s3a://{MINIO_BUCKET}/{path}")
+        df = spark.read.option("header", "true").csv(f"s3a://{minio_bucket}/{path}")
     return df
+
 
 def ensure_bucket_exists(client: Minio):
     """
@@ -48,21 +54,16 @@ def ensure_bucket_exists(client: Minio):
 
     :param client: Minio client
     """
-    if not client.bucket_exists(MINIO_BUCKET):
+    if not client.bucket_exists(minio_bucket):
         client.make_bucket("exalt")
         print("Bucket created")
+
 
 @contextlib.contextmanager
 def get_spark_session():
     """
     Create a SparkSession and yield it.
     """
-    config = ConfigHandler('config/config.ini')
-
-    minio_access_key = config.get_value('MINIO', 'MINIO_ACCESS')
-    minio_secret_key = config.get_value('MINIO', 'MINIO_SECRET')
-
-    spark_master_url = "spark://spark:7077"
 
     spark = SparkSession.builder \
         .appName("FlightRadarApp") \
@@ -75,31 +76,29 @@ def get_spark_session():
         .config("spark.hadoop.fs.s3a.committer.magic.enabled", "true") \
         .config("spark.hadoop.mapreduce.outputcommitter.factory.scheme.s3a", "org.apache.hadoop.fs.s3a.commit.S3ACommitterFactory") \
         .config("fs.s3a.committer.name", "magic") \
-        .config("spark.sql.sources.commitProtocolClass", "org.apache.spark.internal.io.cloud.PathOutputCommitProtocol") \
-        .config("spark.sql.parquet.output.committer.class", "org.apache.spark.internal.io.cloud.BindingParquetOutputCommitter") \
         .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false") \
         .config("spark.jars.packages",
                  "org.apache.hadoop:hadoop-aws:3.3.4,"
                 "com.amazonaws:aws-java-sdk-bundle:1.12.262,"
-                "org.apache.spark:spark-hadoop-cloud_2.12:3.3.1"
                 )\
         .getOrCreate()
     
-    spark.sparkContext.addPyFile("pycountry_convert.zip")
+    # Set logging level
+    spark.sparkContext.setLogLevel("ERROR")
+
     try:
         yield spark
     finally:
         spark.stop()
 
-# @flow(log_prints=True)
+
+@flow(log_prints=True)
 def pipeline_flow():
     config = ConfigHandler('config/config.ini')
     
     airlines_path = config.get_value('path', 'airlines_csv_path')
     airports_path = config.get_value('path', 'airports_csv_path')
     flights_path = config.get_value('path', 'flights_parquet_path')
-    minio_access_key = config.get_value('MINIO', 'MINIO_ACCESS')
-    minio_secret_key = config.get_value('MINIO', 'MINIO_SECRET')
 
     client = Minio(
         "minio:9000",
@@ -115,9 +114,15 @@ def pipeline_flow():
         airports_df = get_or_create_df(client, spark, airports_path, extract.get_all_airports, transform.create_airports_df)
 
         flights = extract.get_all_flights(fr_api)
-        flights_df = transform.create_flights_df(flights, spark)
+        flights_raw_df = extract.create_flights_raw_df(flights, spark)
+        load.save_flights_bronze_csv(flights_raw_df, f"s3a://{minio_bucket}/{flights_path}/bronze")
+        flights_df = transform.create_flights_silver_df(flights, spark)
+        load.save_flights_to_parquet(flights_df, f"s3a://{minio_bucket}/{flights_path}/silver")
         flights_df_enriched = transform.flights_enriched_df(flights_df, airports_df, airlines_df)
-        load.save_flights_to_parquet(flights_df_enriched, flights_path, client)
+        #save 1000 rows to parquet for testing
+        flights_df_enriched.limit(1000).write.mode("overwrite").parquet(f"s3a://{minio_bucket}/{flights_path}/test")
+        load.save_flights_to_parquet(flights_df_enriched, f"s3a://{minio_bucket}/{flights_path}/gold")
+
 
 if __name__ == "__main__":
-    pipeline_flow()
+    pipeline_flow.serve("pipeline_flow_deployment", interval=3600)
