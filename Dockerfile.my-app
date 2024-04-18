@@ -38,6 +38,9 @@ RUN apt-get update && \
 
 ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64
 
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
+# Add the start.sh script
+ADD start.sh /start.sh
+RUN chmod +x /start.sh
+
+# Run the start.sh script when the container starts
+CMD ["/start.sh"]
