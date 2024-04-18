@@ -122,8 +122,6 @@ def pipeline_flow():
         flights_df = transform.create_flights_silver_df(flights, spark)
         load.save_flights_to_parquet(flights_df, f"s3a://{minio_bucket}/{flights_path}/silver")
         flights_df_enriched = transform.flights_enriched_df(flights_df, airports_df, airlines_df)
-        #save 1000 rows to parquet for testing
-        flights_df_enriched.limit(1000).write.mode("overwrite").parquet(f"s3a://{minio_bucket}/{flights_path}/test")
         load.save_flights_to_parquet(flights_df_enriched, f"s3a://{minio_bucket}/{flights_path}/gold")
 
 
