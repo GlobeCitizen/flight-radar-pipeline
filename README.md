@@ -67,11 +67,11 @@ You can also configure the resource allocated to the spark workers on the docker
 
 1. Clone the repository:
 ```sh
-git clone
+git clone 
 ```
 2. Navigate to the project directory:
 ```sh
-cd flight-radar
+cd flight-radar-pipeline
 ```
 3. Build the Docker Compose services:
 ```sh
@@ -79,7 +79,7 @@ make build
 ```
 4. Start the Docker Compose services:
 ```sh
-make up
+make up scale=<number of workers>
 ```
 Now we have:
 - Minio console [localhost:9001](http://localhost:9001/)
@@ -89,7 +89,7 @@ Now we have:
 To run the main script, use the following command:
 
 ```sh
-make run-main scale=<number of workers>
+make run-main
 ```
 
 Navigate to the Prefect console and initiate the first run of the pipeline flow. This step is only necessary if you wish to start the flow immediately. Otherwise, the pipeline will automatically execute within an hour, and continue to run on an hourly schedule thereafter.
