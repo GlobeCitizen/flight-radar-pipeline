@@ -1,5 +1,6 @@
 import configparser
 
+
 class ConfigHandler:
     def __init__(self, config_file):
         self.config = configparser.ConfigParser()
@@ -18,5 +19,5 @@ class ConfigHandler:
         self.config.set(section, key, value)
 
     def save_config(self, config_file):
-        with open(config_file, 'w') as file:
+        with open(config_file, "w") as file:
             self.config.write(file)
