@@ -1,4 +1,5 @@
 # Project Architecture
+![Alt text](images/pipeline-diagram.png "Pipeline architecture diagram")
 
 This project is designed to be a robust, scalable, and automated ETL pipeline for processing real-time flight data from the Flightradar24 API, respecting the Medaillon architecture. The architecture of the application includes the following components:
 ### Data Extraction(Bronze)
