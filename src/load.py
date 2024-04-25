@@ -3,6 +3,7 @@ import pytz
 from prefect import task
 from pyspark.sql import DataFrame
 
+
 @task(name="Saving DataFrame to CSV")
 def save_df_to_csv(df: DataFrame, path: str):
     """
@@ -15,11 +16,12 @@ def save_df_to_csv(df: DataFrame, path: str):
     print(f"Saving DataFrame to {path}")
     df.coalesce(1).write.option("header", "true").mode("overwrite").format("csv").save(path)
 
+
 @task(name="Saving flight bronze csv")
 def save_flights_bronze_csv(flights_df: DataFrame, path: str):
     """
     Save the flights_df data to a CSV file.
-    
+
     Parameters:
         flights_df : DataFrame
         path : str
@@ -40,11 +42,12 @@ def save_flights_bronze_csv(flights_df: DataFrame, path: str):
     # Create the path to the Minio bucket
     date = f"/year={year}/month={month}/day={day}/{file_name}"
     file_path = path + date
-    
+
     # Save the DataFrame to a CSV file
     flights_df.write.format("csv").mode("overwrite").save(file_path)
 
     print(f"Flights saved to {file_path}")
+
 
 @task(name="Saving flights to Parquet")
 def save_flights_to_parquet(flights_df: DataFrame, path: str):
@@ -71,7 +74,7 @@ def save_flights_to_parquet(flights_df: DataFrame, path: str):
     # Create the path to the Minio bucket
     date = f"/year={year}/month={month}/day={day}/{file_name}"
     file_path = path + date
-    
+
     # Save the DataFrame to a CSV file
     flights_df.write.format("parquet").mode("overwrite").save(file_path)
 
