@@ -95,14 +95,10 @@ def get_top_three_aircraft_model_per_country(flights_df) -> dict:
     # Group by the aircraft model and country and count the number of flights
     aircraft_model_flights = flights_df.groupBy("aircraft_code", "origin_country").count()
 
-    aircraft_model_flights.show()
-
     # Get the top three aircraft model per country
     result = aircraft_model_flights.withColumn('rank', F.row_number().over(Window.partitionBy('origin_country').orderBy(F.desc('count')))) \
                                     .filter(F.col('rank') <= 3)
     
-    result.orderBy("origin_country", "rank").show()
-
     top_three_aircraft_model_per_country = result.groupBy("origin_country") \
                                             .agg(F.concat_ws(", ", F.collect_list(result.aircraft_code)).alias("top_three_aircraft_model")) \
                                             .collect()
